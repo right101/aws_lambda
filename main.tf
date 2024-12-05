@@ -14,7 +14,7 @@ resource "aws_s3_bucket_versioning" "terraform_state" {
 
 # S3 Bucket for Lambda Code
 resource "aws_s3_bucket" "lambda_code" {
-  bucket = "lambda-code-bucket-unique-name"
+  bucket = "lambda-code-bucket-unique-right101"
   acl    = "private"
 }
 
@@ -47,7 +47,7 @@ resource "aws_iam_policy_attachment" "lambda_logs" {
 
 # Lambda Function
 resource "aws_lambda_function" "lambda_cron" {
-  function_name    = "lambda_cron_function"
+  function_name    = var.lambda_function_name
   s3_bucket        = aws_s3_bucket.lambda_code.id
   s3_key           = aws_s3_bucket_object.lambda_code_object.key
   runtime          = "python3.9"
