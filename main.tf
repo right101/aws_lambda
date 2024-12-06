@@ -1,69 +1,72 @@
+# S3 bucket for Terraform state (referenced in backend.tf)
+resource "aws_s3_bucket" "terraform_state" {
+  bucket = var.s3_buckets["terraform_state"]
+  versioning {
+    enabled = true
+  }
+}
+
 # S3 bucket for Lambda code
 resource "aws_s3_bucket" "lambda_code" {
-  bucket = var.s3_buckets["lambda_code"]
+  bucket        = var.s3_buckets["lambda_code"]
+  force_destroy = true
 }
 
-resource "aws_s3_bucket_acl" "lambda_code_acl" {
-  bucket = aws_s3_bucket.lambda_code.id
-  acl    = "private"
-}
-
+# Upload Lambda code to S3
 resource "aws_s3_object" "lambda_code_object" {
-  bucket = var.s3_buckets["lambda_code"]
-  key    = "lambda_function.zip"
-  source = "lambda_function.zip"
+  bucket = aws_s3_bucket.lambda_code.id
+  key    = var.lambda_config["s3_key"]
+  source = var.lambda_config["code_file"] # Ensure this file exists
 }
 
-# Lambda IAM role
-resource "aws_iam_role" "lambda_execution_role" {
-  name = "lambda_execution_role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Action = "sts:AssumeRole",
-        Effect = "Allow",
-        Principal = {
-          Service = "lambda.amazonaws.com"
-        }
-      }
-    ]
-  })
+# Use Anton Babenko's Lambda module
+module "lambda_cron" {
+  source  = "terraform-aws-modules/lambda/aws"
+  version = "~> 5.0"
+
+  function_name = var.lambda_config["function_name"]
+  description   = "Lambda function triggered by CloudWatch Events every 5 minutes"
+
+  s3_bucket = aws_s3_bucket.lambda_code.id
+  s3_object_key    = aws_s3_object.lambda_code_object.key
+
+  handler = var.lambda_config["handler"]
+  runtime = var.lambda_config["runtime"]
+
+  create_role = true
+  allowed_triggers = {
+    cloudwatch_event = {
+      service = "events.amazonaws.com"
+    }
+  }
+
+  environment_variables = {
+    LOG_LEVEL = "INFO"
+  }
+
+  tags = {
+    Environment = "Production"
+    Project     = "LambdaCron"
+  }
 }
 
-resource "aws_iam_role_policy_attachment" "lambda_execution_policy" {
-  role       = aws_iam_role.lambda_execution_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-# Lambda function
-resource "aws_lambda_function" "lambda_cron" {
-  function_name = var.lambda_config["name"]
-  s3_bucket     = var.s3_buckets["lambda_code"]
-  s3_key        = aws_s3_object.lambda_code_object.id
-  runtime       = var.lambda_config["runtime"]
-  handler       = var.lambda_config["handler"]
-  role          = aws_iam_role.lambda_execution_role.arn
-  timeout       = var.lambda_config["timeout"]
-}
-
-# CloudWatch Event Rule
+# CloudWatch Event Rule to trigger Lambda every 5 minutes
 resource "aws_cloudwatch_event_rule" "lambda_schedule" {
-  name                = "lambda_cron_schedule"
+  name                = var.lambda_config["schedule_name"]
   description         = "Triggers Lambda every 5 minutes"
-  schedule_expression = "cron(0/5 * * * ? *)"
+  schedule_expression = var.lambda_config["schedule_cron"]
 }
 
 resource "aws_cloudwatch_event_target" "lambda_target" {
   rule      = aws_cloudwatch_event_rule.lambda_schedule.name
   target_id = "lambda"
-  arn       = aws_lambda_function.lambda_cron.arn
+  arn       = module.lambda_cron.lambda_function_arn
 }
 
 resource "aws_lambda_permission" "allow_cloudwatch" {
   statement_id  = "AllowExecutionFromCloudWatch"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.lambda_cron.function_name
+  function_name = module.lambda_cron.lambda_function_name
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.lambda_schedule.arn
 }

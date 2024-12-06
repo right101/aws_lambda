@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # Variables
-BUCKET_NAME="right101-terraform-state-bucket"  # Your bucket name
-REGION="us-east-1"                            # Your desired region
-DRY_RUN=false                                 # Enable dry-run mode for testing
+STATE_BUCKET="right101-terraform-state-bucket"  # S3 bucket for Terraform state
+REGION="us-east-1"                              # AWS region
+LAMBDA_ZIP_FILE="lambda_function.zip"           # Lambda ZIP file name
 
-# Function to check the status of the last command and exit on failure
+# Function to check the status of the last command
 check_status() {
   if [ $? -ne 0 ]; then
     echo "Error: $1"
@@ -13,32 +13,29 @@ check_status() {
   fi
 }
 
-# Check if dry-run mode is enabled
-if $DRY_RUN; then
-  echo "Dry-run mode enabled. No changes will be made."
-  exit 0
-fi
-
-# Check if the S3 bucket exists
-echo "Checking if S3 bucket '$BUCKET_NAME' exists..."
-if ! aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
-  echo "Bucket '$BUCKET_NAME' does not exist. Creating..."
+# Check if the S3 bucket for Terraform state exists
+echo "Checking if S3 bucket '$STATE_BUCKET' exists..."
+if ! aws s3api head-bucket --bucket "$STATE_BUCKET" 2>/dev/null; then
+  echo "Bucket '$STATE_BUCKET' does not exist. Creating..."
   if [ "$REGION" == "us-east-1" ]; then
-    aws s3api create-bucket --bucket "$BUCKET_NAME"
-    check_status "Failed to create bucket '$BUCKET_NAME' in region '$REGION'."
+    aws s3api create-bucket --bucket "$STATE_BUCKET"
   else
-    aws s3api create-bucket --bucket "$BUCKET_NAME" --region "$REGION" \
+    aws s3api create-bucket --bucket "$STATE_BUCKET" --region "$REGION" \
       --create-bucket-configuration LocationConstraint="$REGION"
-    check_status "Failed to create bucket '$BUCKET_NAME' in region '$REGION'."
   fi
-  aws s3api put-bucket-versioning --bucket "$BUCKET_NAME" --versioning-configuration Status=Enabled
-  check_status "Failed to enable versioning for bucket '$BUCKET_NAME'."
-  echo "Bucket '$BUCKET_NAME' created and versioning enabled."
+  aws s3api put-bucket-versioning --bucket "$STATE_BUCKET" --versioning-configuration Status=Enabled
+  check_status "Failed to create or configure the S3 bucket for state."
 else
-  echo "Bucket '$BUCKET_NAME' already exists."
+  echo "Bucket '$STATE_BUCKET' already exists."
 fi
 
-# Format Terraform configuration
+# Ensure the Lambda ZIP file exists
+if [ ! -f "$LAMBDA_ZIP_FILE" ]; then
+  echo "Lambda ZIP file '$LAMBDA_ZIP_FILE' not found. Please create it before running this script."
+  exit 1
+fi
+
+# Format Terraform files
 echo "Formatting Terraform configuration..."
 terraform fmt -recursive
 check_status "Terraform formatting failed."
@@ -48,19 +45,24 @@ echo "Initializing Terraform..."
 terraform init
 check_status "Terraform initialization failed."
 
-# Plan Terraform configuration
+# Validate Terraform configuration
+echo "Validating Terraform configuration..."
+terraform validate
+check_status "Terraform validation failed."
+
+# Generate and show Terraform plan
 echo "Planning Terraform configuration..."
 terraform plan -out=tfplan
 check_status "Terraform plan failed."
 
-# Confirm before applying Terraform changes
+# Prompt for user confirmation before applying
 read -p "Do you want to apply Terraform changes? (yes/no): " CONFIRM
 if [ "$CONFIRM" != "yes" ]; then
   echo "Terraform apply canceled."
   exit 0
 fi
 
-# Apply Terraform configuration
+# Apply the Terraform plan
 echo "Applying Terraform configuration..."
 terraform apply tfplan
 check_status "Terraform apply failed."
