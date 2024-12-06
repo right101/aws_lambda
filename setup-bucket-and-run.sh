@@ -29,10 +29,19 @@ else
   echo "Bucket '$STATE_BUCKET' already exists."
 fi
 
-# Ensure the Lambda ZIP file exists
+# Check if Lambda ZIP file exists
 if [ ! -f "$LAMBDA_ZIP_FILE" ]; then
-  echo "Lambda ZIP file '$LAMBDA_ZIP_FILE' not found. Please create it before running this script."
-  exit 1
+  echo "Lambda ZIP file '$LAMBDA_ZIP_FILE' not found. Creating it now..."
+  cat << EOF > lambda_function.py
+def lambda_handler(event, context):
+    print("Hello! Lambda function triggered by CloudWatch Events.")
+    return {"statusCode": 200, "body": "Lambda executed successfully!"}
+EOF
+  zip $LAMBDA_ZIP_FILE lambda_function.py
+  check_status "Failed to create and zip Lambda function."
+  echo "Lambda function zipped successfully."
+else
+  echo "Lambda ZIP file '$LAMBDA_ZIP_FILE' already exists."
 fi
 
 # Format Terraform files

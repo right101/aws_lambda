@@ -27,8 +27,8 @@ module "lambda_cron" {
   function_name = var.lambda_config["function_name"]
   description   = "Lambda function triggered by CloudWatch Events every 5 minutes"
 
-  s3_bucket = aws_s3_bucket.lambda_code.id
-  s3_object_key    = aws_s3_object.lambda_code_object.key
+  s3_bucket     = aws_s3_bucket.lambda_code.id
+  s3_object_key = aws_s3_object.lambda_code_object.key
 
   handler = var.lambda_config["handler"]
   runtime = var.lambda_config["runtime"]
