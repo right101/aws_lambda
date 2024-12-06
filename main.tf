@@ -30,7 +30,7 @@ module "lambda_cron" {
   function_name = var.lambda_config["function_name"]
   description   = "Lambda function triggered by CloudWatch Events every 5 minutes"
 
-  source_path = var.lambda_config["code_file"]
+  source_path = "./lambda_function.zip"
 
   handler = var.lambda_config["handler"]
   runtime = var.lambda_config["runtime"]

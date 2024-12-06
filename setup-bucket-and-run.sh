@@ -2,6 +2,7 @@
 
 # Variables
 STATE_BUCKET="right101-terraform-state-bucket"  # S3 bucket for Terraform state
+LAMBDA_CODE_BUCKET="right101-lambda-code-bucket" # S3 bucket for Lambda code
 REGION="us-east-1"                              # AWS region
 LAMBDA_ZIP_FILE="lambda_function.zip"           # Lambda ZIP file name
 
@@ -29,6 +30,22 @@ else
   echo "Bucket '$STATE_BUCKET' already exists."
 fi
 
+# Check if the S3 bucket for Lambda code exists
+echo "Checking if S3 bucket '$LAMBDA_CODE_BUCKET' exists..."
+if ! aws s3api head-bucket --bucket "$LAMBDA_CODE_BUCKET" 2>/dev/null; then
+  echo "Bucket '$LAMBDA_CODE_BUCKET' does not exist. Creating..."
+  if [ "$REGION" == "us-east-1" ]; then
+    aws s3api create-bucket --bucket "$LAMBDA_CODE_BUCKET"
+  else
+    aws s3api create-bucket --bucket "$LAMBDA_CODE_BUCKET" --region "$REGION" \
+      --create-bucket-configuration LocationConstraint="$REGION"
+  fi
+  aws s3api put-bucket-versioning --bucket "$LAMBDA_CODE_BUCKET" --versioning-configuration Status=Enabled
+  check_status "Failed to create or configure the S3 bucket for Lambda code."
+else
+  echo "Bucket '$LAMBDA_CODE_BUCKET' already exists."
+fi
+
 # Check if Lambda ZIP file exists
 if [ ! -f "$LAMBDA_ZIP_FILE" ]; then
   echo "Lambda ZIP file '$LAMBDA_ZIP_FILE' not found. Creating it now..."
@@ -43,6 +60,12 @@ EOF
 else
   echo "Lambda ZIP file '$LAMBDA_ZIP_FILE' already exists."
 fi
+
+# Upload Lambda ZIP to S3 bucket
+echo "Uploading Lambda ZIP to S3 bucket '$LAMBDA_CODE_BUCKET'..."
+aws s3 cp "$LAMBDA_ZIP_FILE" "s3://$LAMBDA_CODE_BUCKET/$LAMBDA_ZIP_FILE"
+check_status "Failed to upload Lambda ZIP file to S3."
+echo "Lambda ZIP file uploaded successfully."
 
 # Format Terraform files
 echo "Formatting Terraform configuration..."
