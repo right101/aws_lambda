@@ -18,8 +18,8 @@ variable "lambda_config" {
     function_name = "lambda_cron_function"
     runtime       = "python3.9"
     handler       = "lambda_function.lambda_handler"
-    s3_key        = "lambda_function.zip"
     code_file     = "lambda_function.zip"
+    s3_key        = "lambda_function.zip"
     schedule_name = "lambda_cron_schedule"
     schedule_cron = "cron(0/5 * * * ? *)"
   }

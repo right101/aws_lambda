@@ -1,6 +1,5 @@
 output "lambda_function_arn" {
-  value       = aws_lambda_function.lambda_cron.arn
-  description = "The ARN of the deployed Lambda function."
+  value = module.lambda_cron.lambda_function_arn
 }
 
 output "cloudwatch_event_rule" {

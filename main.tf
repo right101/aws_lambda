@@ -1,8 +1,11 @@
-# S3 bucket for Terraform state (referenced in backend.tf)
 resource "aws_s3_bucket" "terraform_state" {
   bucket = var.s3_buckets["terraform_state"]
-  versioning {
-    enabled = true
+}
+
+resource "aws_s3_bucket_versioning" "terraform_state_versioning" {
+  bucket = aws_s3_bucket.terraform_state.id
+  versioning_configuration {
+    status = "Enabled"
   }
 }
 
@@ -16,7 +19,7 @@ resource "aws_s3_bucket" "lambda_code" {
 resource "aws_s3_object" "lambda_code_object" {
   bucket = aws_s3_bucket.lambda_code.id
   key    = var.lambda_config["s3_key"]
-  source = var.lambda_config["code_file"] # Ensure this file exists
+  source = var.lambda_config["code_file"]
 }
 
 # Use Anton Babenko's Lambda module
@@ -27,8 +30,7 @@ module "lambda_cron" {
   function_name = var.lambda_config["function_name"]
   description   = "Lambda function triggered by CloudWatch Events every 5 minutes"
 
-  s3_bucket     = aws_s3_bucket.lambda_code.id
-  s3_object_key = aws_s3_object.lambda_code_object.key
+  source_path = var.lambda_config["code_file"]
 
   handler = var.lambda_config["handler"]
   runtime = var.lambda_config["runtime"]
@@ -45,7 +47,7 @@ module "lambda_cron" {
   }
 
   tags = {
-    Environment = "Production"
+    Environment = "Dev"
     Project     = "LambdaCron"
   }
 }
