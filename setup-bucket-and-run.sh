@@ -4,6 +4,7 @@
 STATE_BUCKET="right101-terraform-state-bucket"  # S3 bucket for Terraform state
 REGION="us-east-1"                              # AWS region
 TFVARS_FILE="custom.tfvars"                     # Custom variables file
+BACKEND_FILE="backend.tf"                       # Terraform backend configuration file
 
 # Function to check the status of the last command
 check_status() {
@@ -28,6 +29,19 @@ if ! aws s3api head-bucket --bucket "$STATE_BUCKET" 2>/dev/null; then
 else
   echo "Bucket '$STATE_BUCKET' already exists."
 fi
+
+# Create the backend.tf file
+echo "Creating Terraform backend configuration file ($BACKEND_FILE)..."
+cat <<EOF > $BACKEND_FILE
+terraform {
+  backend "s3" {
+    bucket = "$STATE_BUCKET"
+    key    = "lambda-cron/terraform.tfstate"
+    region = "$REGION"
+  }
+}
+EOF
+check_status "Failed to create backend configuration file."
 
 # Initialize Terraform
 echo "Initializing Terraform..."
