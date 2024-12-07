@@ -28,7 +28,17 @@ The Lambda function's code is dynamically generated, zipped, and uploaded to an 
 
 ---
 
-## Setup Instructions
+## File Structure
+
+### Key Files
+- **`setup-bucket-and-run.sh`**: Automates backend bucket creation, Terraform initialization, and provides options to plan, apply, or destroy the configuration.
+- **`main.tf`**: Defines the resources for Lambda, S3, IAM roles, and CloudWatch Event triggers.
+- **`backend.tf`**: Configures the Terraform backend to use an S3 bucket for state storage.
+- **`variables.tf`**: Declares variables for reusable and configurable infrastructure definitions.
+- **`custom.tfvars`**: Provides values for the declared variables, such as bucket names and Lambda settings.
+- **`output.tf`**: Outputs information like the Lambda function ARN and Event Rule name.
+
+---
 
 ### Step 1: Configure the Terraform State Bucket
 Ensure the S3 bucket for storing Terraform state is created using the script:
