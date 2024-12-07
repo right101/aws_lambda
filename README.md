@@ -65,9 +65,10 @@ bucket_config = {
   terraform_state = "example-terraform-state-bucket"
   lambda_code     = "example-lambda-code-bucket"
 }
-
+```
 ### Step 2: Run the Automation Script
 Execute the `setup-bucket-and-run.sh` script to dynamically create the backend configuration and initialize Terraform:
 
 ```bash
 ./setup-bucket-and-run.sh
+```
