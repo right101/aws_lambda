@@ -2,8 +2,8 @@
 
 # Variables
 STATE_BUCKET="right101-terraform-state-bucket"  # S3 bucket for Terraform state
-TF_VARS_FILE="custom.tfvars"                    # Terraform variables file
 REGION="us-east-1"                              # AWS region
+TFVARS_FILE="custom.tfvars"                     # Custom variables file
 
 # Function to check the status of the last command
 check_status() {
@@ -13,60 +13,64 @@ check_status() {
   fi
 }
 
-# Function to create S3 bucket if it doesn't exist
-create_s3_bucket() {
-  local bucket_name=$1
-  local region=$2
-
-  echo "Checking if S3 bucket '$bucket_name' exists..."
-  if ! aws s3api head-bucket --bucket "$bucket_name" 2>/dev/null; then
-    echo "Bucket '$bucket_name' does not exist. Creating..."
-    if [ "$region" == "us-east-1" ]; then
-      aws s3api create-bucket --bucket "$bucket_name"
-    else
-      aws s3api create-bucket --bucket "$bucket_name" --region "$region" \
-        --create-bucket-configuration LocationConstraint="$region"
-    fi
-    aws s3api put-bucket-versioning --bucket "$bucket_name" --versioning-configuration Status=Enabled
-    check_status "Failed to create or configure the S3 bucket '$bucket_name'."
+# Check if the S3 bucket for Terraform state exists
+echo "Checking if S3 bucket '$STATE_BUCKET' exists..."
+if ! aws s3api head-bucket --bucket "$STATE_BUCKET" 2>/dev/null; then
+  echo "Bucket '$STATE_BUCKET' does not exist. Creating..."
+  if [ "$REGION" == "us-east-1" ]; then
+    aws s3api create-bucket --bucket "$STATE_BUCKET"
   else
-    echo "Bucket '$bucket_name' already exists."
+    aws s3api create-bucket --bucket "$STATE_BUCKET" --region "$REGION" \
+      --create-bucket-configuration LocationConstraint="$REGION"
   fi
-}
-
-# Create the state bucket
-create_s3_bucket "$STATE_BUCKET" "$REGION"
-
-# Run Terraform commands
-echo "Running Terraform commands with variables from $TF_VARS_FILE..."
+  aws s3api put-bucket-versioning --bucket "$STATE_BUCKET" --versioning-configuration Status=Enabled
+  check_status "Failed to create or configure the S3 bucket for state."
+else
+  echo "Bucket '$STATE_BUCKET' already exists."
+fi
 
 # Initialize Terraform
+echo "Initializing Terraform..."
 terraform init
 check_status "Terraform initialization failed."
 
-# Format Terraform files
-terraform fmt -recursive
-check_status "Terraform formatting failed."
+# Prompt the user for the action to perform
+echo "Choose an action: plan, apply, or destroy"
+read -p "Enter your choice: " ACTION
 
-# Validate Terraform configuration
-terraform validate
-check_status "Terraform validation failed."
+if [ "$ACTION" == "plan" ]; then
+  echo "Planning Terraform configuration..."
+  terraform plan -var-file="$TFVARS_FILE" -out=tfplan
+  check_status "Terraform plan failed."
+  
+  # Prompt the user for follow-up action
+  echo "Do you want to apply the plan or destroy the infrastructure?"
+  read -p "Enter 'apply' to apply the plan or 'destroy' to destroy the resources: " FOLLOW_UP_ACTION
+  
+  if [ "$FOLLOW_UP_ACTION" == "apply" ]; then
+    echo "Applying Terraform configuration..."
+    terraform apply tfplan
+    check_status "Terraform apply failed."
+  elif [ "$FOLLOW_UP_ACTION" == "destroy" ]; then
+    echo "Destroying Terraform-managed infrastructure..."
+    terraform destroy -var-file="$TFVARS_FILE"
+    check_status "Terraform destroy failed."
+  else
+    echo "Invalid action specified. Exiting."
+    exit 1
+  fi
 
-# Generate and show Terraform plan using custom.tfvars
-terraform plan -var-file="$TF_VARS_FILE" -out=tfplan
-check_status "Terraform plan failed."
+elif [ "$ACTION" == "apply" ]; then
+  echo "Applying Terraform configuration..."
+  terraform apply -var-file="$TFVARS_FILE"
+  check_status "Terraform apply failed."
 
-# Prompt for user confirmation before applying
-read -p "Do you want to apply Terraform changes? (yes/no): " CONFIRM
-if [ "$CONFIRM" != "yes" ]; then
-  echo "Terraform apply canceled."
-  exit 0
+elif [ "$ACTION" == "destroy" ]; then
+  echo "Destroying Terraform-managed infrastructure..."
+  terraform destroy -var-file="$TFVARS_FILE"
+  check_status "Terraform destroy failed."
+
+else
+  echo "Invalid action specified. Exiting."
+  exit 1
 fi
-
-# Apply the Terraform plan
-terraform apply tfplan
-check_status "Terraform apply failed."
-
-# Cleanup the plan file
-rm -f tfplan
-echo "Terraform apply completed successfully."

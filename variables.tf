@@ -16,7 +16,7 @@ variable "lambda_config" {
     timeout          = number
     schedule_name    = string
     schedule_cron    = string
-    environment_vars = map(string) 
+    environment_vars = map(string)
   })
 }
 
