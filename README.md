@@ -1,6 +1,10 @@
 # Automated Deployment of AWS Lambda with Terraform and Scheduled Trigger
+## Overview
 
-This project demonstrates how to deploy an AWS Lambda function using Terraform, with the function's code dynamically generated and scheduled to run every 5 minutes using AWS CloudWatch Event Rules.
+This project simplifies the deployment of an AWS Lambda function triggered by a scheduled CloudWatch Event Rule, using Terraform for infrastructure as code (IaC). The setup includes an automated script that handles Terraform backend creation, initialization, and resource deployment.
+
+The Lambda function's code is dynamically generated, zipped, and uploaded to an S3 bucket, while Terraform manages all associated resources, including IAM Roles, S3 buckets, and CloudWatch Events. This ensures a scalable and reusable workflow for managing serverless infrastructure with robust automation and error handling.
+
 
 ## Features
 
