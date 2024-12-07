@@ -11,6 +11,7 @@ The Lambda function's code is dynamically generated, zipped, and uploaded to an 
 ## Features
 
 - **AWS Lambda Deployment**: Automatically create, configure, and deploy an AWS Lambda function.
+- **Dynamic Terraform Backend**: The `setup-bucket-and-run.sh` script dynamically creates the `backend.tf` file for managing the Terraform state.
 - **CloudWatch Event Scheduling**: Trigger the Lambda function every 5 minutes using CloudWatch Event Rules.
 - **Dynamic Code Management**: Dynamically generate, zip, and upload the Lambda function code to an S3 bucket.
 - **S3 Backend Integration**: Store Terraform state in a dedicated S3 bucket for reliable infrastructure management.
@@ -33,15 +34,16 @@ The Lambda function's code is dynamically generated, zipped, and uploaded to an 
 ### Key Files
 - **`setup-bucket-and-run.sh`**: Automates backend bucket creation, Terraform initialization, and provides options to plan, apply, or destroy the configuration.
 - **`main.tf`**: Defines the resources for Lambda, S3, IAM roles, and CloudWatch Event triggers.
-- **`backend.tf`**: Configures the Terraform backend to use an S3 bucket for state storage.
 - **`variables.tf`**: Declares variables for reusable and configurable infrastructure definitions.
 - **`custom.tfvars`**: Provides values for the declared variables, such as bucket names and Lambda settings.
 - **`output.tf`**: Outputs information like the Lambda function ARN and Event Rule name.
 
 ---
 
-### Step 1: Configure the Terraform State Bucket
-Ensure the S3 bucket for storing Terraform state is created using the script:
+## Setup Instructions
+
+### Step 1: Run the Automation Script
+Execute the `setup-bucket-and-run.sh` script to dynamically create the backend configuration and initialize Terraform:
 
 ```bash
 ./setup-bucket-and-run.sh
