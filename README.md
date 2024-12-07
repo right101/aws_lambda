@@ -22,12 +22,11 @@ The Lambda function's code is dynamically generated, zipped, and uploaded to an 
 
 ## Prerequisites
 
-Before running the project, ensure the following tools and configurations are in place:
-
 1. **AWS CLI** installed and configured with the appropriate credentials.
 2. **Terraform** installed (version >= 1.0.0).
-3. AWS IAM permissions for managing Lambda, CloudWatch, S3, and IAM resources.
-4. A working `custom.tfvars` file for custom variable values (see example below).
+3. **Custom Variables File**: Create a `custom.tfvars` file with the required configuration values (example provided below).
+
+---
 
 ## Setup Instructions
 
