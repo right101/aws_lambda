@@ -6,13 +6,19 @@ This project simplifies the deployment of an AWS Lambda function triggered by a 
 The Lambda function's code is dynamically generated, zipped, and uploaded to an S3 bucket, while Terraform manages all associated resources, including IAM Roles, S3 buckets, and CloudWatch Events. This ensures a scalable and reusable workflow for managing serverless infrastructure with robust automation and error handling.
 
 
+---
+
 ## Features
 
-- **AWS Lambda Deployment**: Automatically create an AWS Lambda function.
-- **Terraform Integration**: Use Terraform for infrastructure as code.
-- **CloudWatch Event Trigger**: Schedule the Lambda function to execute every 5 minutes.
-- **Dynamic Code Generation**: Generate and deploy the Lambda function code dynamically using Terraform.
-- **S3 Backend Configuration**: Use an S3 bucket for Terraform state management.
+- **AWS Lambda Deployment**: Automatically create, configure, and deploy an AWS Lambda function.
+- **CloudWatch Event Scheduling**: Trigger the Lambda function every 5 minutes using CloudWatch Event Rules.
+- **Dynamic Code Management**: Dynamically generate, zip, and upload the Lambda function code to an S3 bucket.
+- **S3 Backend Integration**: Store Terraform state in a dedicated S3 bucket for reliable infrastructure management.
+- **Lambda Code Storage**: Store the zipped Lambda function code in a separate S3 bucket (`lambda_code`) for deployment.
+- **Automated Script**: Automate backend S3 bucket creation, Terraform initialization, planning, application, and destruction.
+- **Output Management**: Display key outputs such as Lambda ARN and CloudWatch Event Rule name after deployment.
+
+---
 
 ## Prerequisites
 
