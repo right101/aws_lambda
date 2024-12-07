@@ -2,9 +2,8 @@
 
 # Variables
 STATE_BUCKET="right101-terraform-state-bucket"  # S3 bucket for Terraform state
-LAMBDA_CODE_BUCKET="right101-lambda-code-bucket" # S3 bucket for Lambda code
+TF_VARS_FILE="custom.tfvars"                    # Terraform variables file
 REGION="us-east-1"                              # AWS region
-LAMBDA_ZIP_FILE="lambda_function.zip"           # Lambda ZIP file name
 
 # Function to check the status of the last command
 check_status() {
@@ -14,77 +13,47 @@ check_status() {
   fi
 }
 
-# Check if the S3 bucket for Terraform state exists
-echo "Checking if S3 bucket '$STATE_BUCKET' exists..."
-if ! aws s3api head-bucket --bucket "$STATE_BUCKET" 2>/dev/null; then
-  echo "Bucket '$STATE_BUCKET' does not exist. Creating..."
-  if [ "$REGION" == "us-east-1" ]; then
-    aws s3api create-bucket --bucket "$STATE_BUCKET"
+# Function to create S3 bucket if it doesn't exist
+create_s3_bucket() {
+  local bucket_name=$1
+  local region=$2
+
+  echo "Checking if S3 bucket '$bucket_name' exists..."
+  if ! aws s3api head-bucket --bucket "$bucket_name" 2>/dev/null; then
+    echo "Bucket '$bucket_name' does not exist. Creating..."
+    if [ "$region" == "us-east-1" ]; then
+      aws s3api create-bucket --bucket "$bucket_name"
+    else
+      aws s3api create-bucket --bucket "$bucket_name" --region "$region" \
+        --create-bucket-configuration LocationConstraint="$region"
+    fi
+    aws s3api put-bucket-versioning --bucket "$bucket_name" --versioning-configuration Status=Enabled
+    check_status "Failed to create or configure the S3 bucket '$bucket_name'."
   else
-    aws s3api create-bucket --bucket "$STATE_BUCKET" --region "$REGION" \
-      --create-bucket-configuration LocationConstraint="$REGION"
+    echo "Bucket '$bucket_name' already exists."
   fi
-  aws s3api put-bucket-versioning --bucket "$STATE_BUCKET" --versioning-configuration Status=Enabled
-  check_status "Failed to create or configure the S3 bucket for state."
-else
-  echo "Bucket '$STATE_BUCKET' already exists."
-fi
+}
 
-# Check if the S3 bucket for Lambda code exists
-echo "Checking if S3 bucket '$LAMBDA_CODE_BUCKET' exists..."
-if ! aws s3api head-bucket --bucket "$LAMBDA_CODE_BUCKET" 2>/dev/null; then
-  echo "Bucket '$LAMBDA_CODE_BUCKET' does not exist. Creating..."
-  if [ "$REGION" == "us-east-1" ]; then
-    aws s3api create-bucket --bucket "$LAMBDA_CODE_BUCKET"
-  else
-    aws s3api create-bucket --bucket "$LAMBDA_CODE_BUCKET" --region "$REGION" \
-      --create-bucket-configuration LocationConstraint="$REGION"
-  fi
-  aws s3api put-bucket-versioning --bucket "$LAMBDA_CODE_BUCKET" --versioning-configuration Status=Enabled
-  check_status "Failed to create or configure the S3 bucket for Lambda code."
-else
-  echo "Bucket '$LAMBDA_CODE_BUCKET' already exists."
-fi
+# Create the state bucket
+create_s3_bucket "$STATE_BUCKET" "$REGION"
 
-# Check if Lambda ZIP file exists
-if [ ! -f "$LAMBDA_ZIP_FILE" ]; then
-  echo "Lambda ZIP file '$LAMBDA_ZIP_FILE' not found. Creating it now..."
-  cat << EOF > lambda_function.py
-def lambda_handler(event, context):
-    print("Hello! Lambda function triggered by CloudWatch Events.")
-    return {"statusCode": 200, "body": "Lambda executed successfully!"}
-EOF
-  zip $LAMBDA_ZIP_FILE lambda_function.py
-  check_status "Failed to create and zip Lambda function."
-  echo "Lambda function zipped successfully."
-else
-  echo "Lambda ZIP file '$LAMBDA_ZIP_FILE' already exists."
-fi
-
-# Upload Lambda ZIP to S3 bucket
-echo "Uploading Lambda ZIP to S3 bucket '$LAMBDA_CODE_BUCKET'..."
-aws s3 cp "$LAMBDA_ZIP_FILE" "s3://$LAMBDA_CODE_BUCKET/$LAMBDA_ZIP_FILE"
-check_status "Failed to upload Lambda ZIP file to S3."
-echo "Lambda ZIP file uploaded successfully."
-
-# Format Terraform files
-echo "Formatting Terraform configuration..."
-terraform fmt -recursive
-check_status "Terraform formatting failed."
+# Run Terraform commands
+echo "Running Terraform commands with variables from $TF_VARS_FILE..."
 
 # Initialize Terraform
-echo "Initializing Terraform..."
 terraform init
 check_status "Terraform initialization failed."
 
+# Format Terraform files
+terraform fmt -recursive
+check_status "Terraform formatting failed."
+
 # Validate Terraform configuration
-echo "Validating Terraform configuration..."
 terraform validate
 check_status "Terraform validation failed."
 
-# Generate and show Terraform plan
-echo "Planning Terraform configuration..."
-terraform plan -out=tfplan
+# Generate and show Terraform plan using custom.tfvars
+terraform plan -var-file="$TF_VARS_FILE" -out=tfplan
 check_status "Terraform plan failed."
 
 # Prompt for user confirmation before applying
@@ -95,7 +64,6 @@ if [ "$CONFIRM" != "yes" ]; then
 fi
 
 # Apply the Terraform plan
-echo "Applying Terraform configuration..."
 terraform apply tfplan
 check_status "Terraform apply failed."
 

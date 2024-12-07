@@ -1,54 +1,49 @@
-resource "aws_s3_bucket" "terraform_state" {
-  bucket = var.s3_buckets["terraform_state"]
+# S3 bucket for Lambda code
+resource "aws_s3_bucket" "lambda_code" {
+  bucket        = var.bucket_config["lambda_code"]
+  force_destroy = true
 }
-
-resource "aws_s3_bucket_versioning" "terraform_state_versioning" {
-  bucket = aws_s3_bucket.terraform_state.id
+resource "aws_s3_bucket_versioning" "lambda_code_versioning" {
+  bucket = aws_s3_bucket.lambda_code.id
   versioning_configuration {
     status = "Enabled"
   }
 }
-
-# S3 bucket for Lambda code
-resource "aws_s3_bucket" "lambda_code" {
-  bucket        = var.s3_buckets["lambda_code"]
-  force_destroy = true
+# Generate Lambda function code dynamically
+resource "local_file" "lambda_code" {
+  content  = <<EOF
+def lambda_handler(event, context):
+    print("Hello! Lambda function triggered by CloudWatch Events.")
+    return {"statusCode": 200, "body": "Lambda executed successfully!"}
+EOF
+  filename = "${path.module}/lambda_function.py"
 }
 
-# Upload Lambda code to S3
-resource "aws_s3_object" "lambda_code_object" {
+# Archive the Lambda code into a ZIP file
+resource "archive_file" "lambda_zip" {
+  type        = "zip"
+  source_file = local_file.lambda_code.filename
+  output_path = "${path.module}/lambda_function.zip"
+}
+
+# Upload the Lambda ZIP to the S3 bucket
+resource "aws_s3_object" "lambda_zip" {
   bucket = aws_s3_bucket.lambda_code.id
-  key    = var.lambda_config["s3_key"]
-  source = var.lambda_config["code_file"]
+  key    = "lambda_function.zip"
+  source = archive_file.lambda_zip.output_path
+  etag   = filemd5(archive_file.lambda_zip.output_path)
 }
 
-# Use Anton Babenko's Lambda module
-module "lambda_cron" {
-  source  = "terraform-aws-modules/lambda/aws"
-  version = "~> 5.0"
-
+resource "aws_lambda_function" "lambda_cron" {
   function_name = var.lambda_config["function_name"]
-  description   = "Lambda function triggered by CloudWatch Events every 5 minutes"
+  s3_bucket     = aws_s3_bucket.lambda_code.id
+  s3_key        = aws_s3_object.lambda_code.key
+  handler       = var.lambda_config["handler"]
+  runtime       = var.lambda_config["runtime"]
+  timeout       = var.lambda_config["timeout"]
 
-  source_path = "./lambda_function.zip"
-
-  handler = var.lambda_config["handler"]
-  runtime = var.lambda_config["runtime"]
-
-  create_role = true
-  allowed_triggers = {
-    cloudwatch_event = {
-      service = "events.amazonaws.com"
-    }
-  }
-
-  environment_variables = {
-    LOG_LEVEL = "INFO"
-  }
-
-  tags = {
-    Environment = "Dev"
-    Project     = "LambdaCron"
+  environment {
+    variables = var.lambda_config["environment_vars"]
   }
 }
 
@@ -59,16 +54,18 @@ resource "aws_cloudwatch_event_rule" "lambda_schedule" {
   schedule_expression = var.lambda_config["schedule_cron"]
 }
 
+# CloudWatch Event Target linking the Event Rule to the Lambda function
 resource "aws_cloudwatch_event_target" "lambda_target" {
   rule      = aws_cloudwatch_event_rule.lambda_schedule.name
   target_id = "lambda"
-  arn       = module.lambda_cron.lambda_function_arn
+  arn       = aws_lambda_function.lambda_cron.arn
 }
 
+# Grant CloudWatch Events permission to invoke the Lambda function
 resource "aws_lambda_permission" "allow_cloudwatch" {
   statement_id  = "AllowExecutionFromCloudWatch"
   action        = "lambda:InvokeFunction"
-  function_name = module.lambda_cron.lambda_function_name
+  function_name = aws_lambda_function.lambda_cron.function_name
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.lambda_schedule.arn
 }
