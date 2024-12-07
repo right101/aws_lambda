@@ -41,8 +41,32 @@ The Lambda function's code is dynamically generated, zipped, and uploaded to an 
 ---
 
 ## Setup Instructions
+### Step 1: Create `custom.tfvars`
 
-### Step 1: Run the Automation Script
+Create a `custom.tfvars` file in the root directory to define your environment-specific configurations.
+
+### Example `tfvars` File
+
+```hcl
+lambda_config = {
+  function_name = "example_lambda_function"
+  runtime       = "python3.9"
+  handler       = "lambda_function.lambda_handler"
+  timeout       = 60
+  schedule_name = "example_schedule"
+  schedule_cron = "cron(0/5 * * * ? *)"
+  environment_vars = {
+    LOG_LEVEL = "INFO"
+    ENV       = "Dev"
+  }
+}
+
+bucket_config = {
+  terraform_state = "example-terraform-state-bucket"
+  lambda_code     = "example-lambda-code-bucket"
+}
+
+### Step 2: Run the Automation Script
 Execute the `setup-bucket-and-run.sh` script to dynamically create the backend configuration and initialize Terraform:
 
 ```bash
